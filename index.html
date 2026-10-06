@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ratti a penna</title>
+<style>
+  :root {
+    --bg:#f1ebde; --ink:#1d1d1b; --muted:#6b675e; --card:#fffaf0; --line:#d6cdb9;
+    --btn:#1d1d1b; --btn-ink:#fffaf0; --chip:#e6dfcf;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#17171a; --ink:#ece6d8; --muted:#9a9488; --card:#222226; --line:#34343a;
+      --btn:#ece6d8; --btn-ink:#17171a; --chip:#2c2c31;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#17171a; --ink:#ece6d8; --muted:#9a9488; --card:#222226; --line:#34343a;
+    --btn:#ece6d8; --btn-ink:#17171a; --chip:#2c2c31;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    display:flex; flex-direction:column; min-height:100dvh;
+    overscroll-behavior:none;
+  }
+  header { padding: calc(14px + env(safe-area-inset-top)) 16px 6px; }
+  h1 { margin:0; font-weight:normal; font-size:1.35rem; }
+  #name { margin:2px 0 0; color:var(--muted); font-style:italic; font-size:.95rem;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  #stage {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    padding: 8px 12px; min-height:0;
+  }
+  #frame {
+    width:100%; max-width:720px; aspect-ratio: 600 / 350;
+    border-radius:10px; overflow:hidden; background:#fffaf0;
+    box-shadow: 0 1px 0 var(--line), 0 6px 24px rgba(0,0,0,.12);
+    display:flex; align-items:center; justify-content:center; position:relative;
+    touch-action: pan-y;
+  }
+  #frame svg { width:100%; height:100%; display:block; }
+  #status { color:#6b675e; font-style:italic; font-size:.95rem; }
+  #frame.busy::after {
+    content:"Disegno in corso…"; position:absolute; inset:0; display:flex;
+    align-items:center; justify-content:center; background:rgba(255,250,240,.75);
+    color:#6b675e; font-style:italic;
+  }
+  .hint { text-align:center; color:var(--muted); font-size:.8rem; margin:8px 0 0; }
+
+  #recent { display:flex; gap:6px; overflow-x:auto; padding: 4px 16px 2px; scrollbar-width:none; }
+  #recent::-webkit-scrollbar { display:none; }
+  .chip { flex:0 0 auto; border:none; background:var(--chip); color:var(--ink);
+          font: inherit; font-size:.85rem; padding:7px 12px; border-radius:999px; max-width:180px;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .panel {
+    position:sticky; bottom:0; background:var(--bg);
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);
+    display:grid; gap:10px;
+  }
+  .row { display:flex; gap:8px; }
+  input[type=text] {
+    flex:1; min-width:0; font: inherit; font-size:16px; /* evita lo zoom automatico su iPhone */
+    padding: 0 14px; height:52px; border-radius:12px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+  }
+  input[type=text]:focus { outline:2px solid var(--ink); outline-offset:1px; }
+  button.big {
+    font: inherit; font-size:1rem; height:52px; border-radius:12px; padding:0 16px;
+    border:1px solid var(--btn); cursor:pointer; touch-action:manipulation;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .solid { background:var(--btn); color:var(--btn-ink); }
+  .ghost { background:var(--card); color:var(--ink); border-color:var(--line) !important; }
+  button.big:active { transform: scale(.97); }
+  button:disabled { opacity:.45; }
+  .grid3 { display:grid; grid-template-columns: 1.3fr 1fr 1fr; gap:8px; }
+  .dice { width:52px; padding:0 !important; font-size:1.4rem !important; flex:0 0 52px; }
+  .opts { display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:.85rem; }
+  .seg { display:flex; background:var(--chip); border-radius:10px; padding:3px; }
+  .seg button { border:none; background:transparent; color:var(--muted); font:inherit; font-size:.8rem;
+                padding:6px 10px; border-radius:8px; }
+  .seg button.on { background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.12); }
+
+  #toast {
+    position:fixed; left:50%; bottom: calc(190px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(10px); opacity:0; pointer-events:none;
+    background:var(--btn); color:var(--btn-ink); padding:10px 16px; border-radius:999px;
+    font-size:.9rem; transition: all .2s; white-space:nowrap; max-width:90vw;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (min-width: 700px) {
+    .panel { max-width:720px; width:100%; margin:0 auto; border-top:none; }
+    #recent { max-width:720px; width:100%; margin:0 auto; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Ratti a penna</h1>
+    <p id="name">&nbsp;</p>
+  </header>
+
+  <div id="stage">
+    <div style="width:100%;max-width:720px">
+      <div id="frame"><span id="status">Generazione in corso…</span></div>
+      <p class="hint">Scorri il ratto a sinistra per uno nuovo, a destra per tornare indietro</p>
+    </div>
+  </div>
+
+  <div id="recent" aria-label="Seed recenti"></div>
+
+  <div class="panel">
+    <div class="row">
+      <input type="text" id="seed" placeholder="Seed: numero o parola" autocomplete="off"
+             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      <button class="big solid" id="go">Genera</button>
+    </div>
+    <div class="grid3">
+      <button class="big solid" id="png">Salva PNG</button>
+      <button class="big ghost" id="svgbtn">SVG</button>
+      <button class="big ghost" id="rnd" aria-label="Ratto casuale">🎲 Caso</button>
+    </div>
+    <div class="opts">
+      <span>Qualità PNG</span>
+      <div class="seg" id="scale">
+        <button data-v="2">Media</button>
+        <button data-v="4" class="on">Alta</button>
+        <button data-v="8">Max</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+// ratdraw.js — ratti procedurali disegnati a linee, nello spirito di fishdraw.
+// Uso da terminale:  node ratdraw.js --seed qualcosa > ratto.svg
+// Uso nel browser:   const r = ratdraw("qualcosa");  r.svg, r.name
+
+(function(root){
+"use strict";
+const PI = Math.PI;
+
+// ---------------------------------------------------------------- casualità
+function makeRNG(str){
+  str = String(str);
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  function mix(){
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  }
+  let a = mix(), b = mix(), c = mix(), d = mix();
+  return function(){
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let t = (a + b) | 0;
+    a = b ^ (b >>> 9); b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11); d = (d + 1) | 0;
+    t = (t + d) | 0; c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+function makeNoise(rng){
+  const P = new Float64Array(1024);
+  for (let i = 0; i < P.length; i++) P[i] = rng();
+  const lat = (i, j) => P[(Math.imul(i, 73856093) ^ Math.imul(j, 19349663)) & 1023];
+  return function(x, y){
+    y = y || 0;
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+    const a = lat(xi,yi), b = lat(xi+1,yi), c = lat(xi,yi+1), d = lat(xi+1,yi+1);
+    return a + (b-a)*u + (c-a)*v + (a-b-c+d)*u*v;
+  };
+}
+
+// ---------------------------------------------------------------- geometria
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t*t*(3-2*t); };
+const add = (p, q) => [p[0]+q[0], p[1]+q[1]];
+const sub = (p, q) => [p[0]-q[0], p[1]-q[1]];
+const mul = (p, s) => [p[0]*s, p[1]*s];
+const len = p => Math.hypot(p[0], p[1]);
+const norm = p => { const l = len(p) || 1; return [p[0]/l, p[1]/l]; };
+const rot = (p, a) => [p[0]*Math.cos(a) - p[1]*Math.sin(a), p[0]*Math.sin(a) + p[1]*Math.cos(a)];
+
+// Profilo fatto di archi: tra due nodi si passa con mezzo periodo di coseno,
+// oppure con un quarto di ellisse ('in' / 'out') per avere punte arrotondate.
+function profile(knots){
+  return function(t){
+    if (t <= knots[0][0]) return knots[0][1];
+    const n = knots.length;
+    if (t >= knots[n-1][0]) return knots[n-1][1];
+    let i = 0;
+    while (t > knots[i+1][0]) i++;
+    const [t0, h0] = knots[i], [t1, h1, mode] = knots[i+1];
+    const u = (t - t0) / (t1 - t0);
+    if (mode === 'in')  return h0 + (h1 - h0) * Math.sqrt(Math.max(0, 1 - (1-u)*(1-u)));
+    if (mode === 'out') return h0 + (h1 - h0) * (1 - Math.sqrt(Math.max(0, 1 - u*u)));
+    return h0 + (h1 - h0) * (1 - Math.cos(u * PI)) / 2;
+  };
+}
+
+function catmull(pts, per){
+  if (pts.length < 3) {
+    const o = []; for (let i = 0; i <= per; i++) o.push([lerp(pts[0][0], pts[1][0], i/per), lerp(pts[0][1], pts[1][1], i/per)]);
+    return o;
+  }
+  const o = [];
+  for (let i = 0; i < pts.length - 1; i++){
+    const p0 = pts[Math.max(0, i-1)], p1 = pts[i], p2 = pts[i+1], p3 = pts[Math.min(pts.length-1, i+2)];
+    for (let k = 0; k < per; k++){
+      const t = k / per, t2 = t*t, t3 = t2*t;
+      o.push([0,1].map(j => 0.5*((2*p1[j]) + (-p0[j]+p2[j])*t + (2*p0[j]-5*p1[j]+4*p2[j]-p3[j])*t2 + (-p0[j]+3*p1[j]-3*p2[j]+p3[j])*t3)));
+    }
+  }
+  o.push(pts[pts.length-1].slice());
+  return o;
+}
+
+function inPoly(p, poly){
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const a = poly[i], b = poly[j];
+    if (((a[1] > p[1]) !== (b[1] > p[1])) && (p[0] < (b[0]-a[0]) * (p[1]-a[1]) / (b[1]-a[1]) + a[0])) c = !c;
+  }
+  return c;
+}
+function bbox(poly){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of poly){ x0 = Math.min(x0,p[0]); y0 = Math.min(y0,p[1]); x1 = Math.max(x1,p[0]); y1 = Math.max(y1,p[1]); }
+  return [x0, y0, x1, y1];
+}
+function region(poly){ return { poly, bb: bbox(poly) }; }
+function inRegion(p, r){
+  return p[0] >= r.bb[0] && p[0] <= r.bb[2] && p[1] >= r.bb[1] && p[1] <= r.bb[3] && inPoly(p, r.poly);
+}
+function resample(pl, step){
+  const o = [pl[0]];
+  for (let i = 1; i < pl.length; i++){
+    const a = pl[i-1], b = pl[i], d = Math.hypot(b[0]-a[0], b[1]-a[1]);
+    const n = Math.max(1, Math.ceil(d / step));
+    for (let k = 1; k <= n; k++) o.push([lerp(a[0], b[0], k/n), lerp(a[1], b[1], k/n)]);
+  }
+  return o;
+}
+function rdp(pts, eps){
+  if (pts.length < 3) return pts;
+  const a = pts[0], b = pts[pts.length-1];
+  if (Math.hypot(b[0]-a[0], b[1]-a[1]) < 1e-9){            // linea chiusa: la divido in due
+    const h = Math.floor(pts.length / 2);
+    return rdp(pts.slice(0, h+1), eps).slice(0, -1).concat(rdp(pts.slice(h), eps));
+  }
+  let dmax = 0, idx = 0;
+  const dx = b[0]-a[0], dy = b[1]-a[1], L = Math.hypot(dx, dy) || 1e-9;
+  for (let i = 1; i < pts.length - 1; i++){
+    const d = Math.abs(dy*pts[i][0] - dx*pts[i][1] + b[0]*a[1] - b[1]*a[0]) / L;
+    if (d > dmax){ dmax = d; idx = i; }
+  }
+  if (dmax > eps) return rdp(pts.slice(0, idx+1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+  return [a, b];
+}
+function circle(c, r, n, a0, a1){
+  a0 = a0 || 0; a1 = (a1 === undefined) ? 2*PI : a1;
+  const o = [];
+  for (let i = 0; i <= n; i++){ const a = lerp(a0, a1, i/n); o.push([c[0] + r*Math.cos(a), c[1] + r*Math.sin(a)]); }
+  return o;
+}
+function tube(center, w0, w1, per){
+  const c = catmull(center, per || 12);
+  const left = [], right = [];
+  for (let i = 0; i < c.length; i++){
+    const a = c[Math.max(0, i-1)], b = c[Math.min(c.length-1, i+1)];
+    const t = norm(sub(b, a)), nrm = [-t[1], t[0]];
+    const w = lerp(w0, w1, i / (c.length - 1)) / 2;
+    left.push(add(c[i], mul(nrm, w))); right.push(sub(c[i], mul(nrm, w)));
+  }
+  return { left, right, poly: left.concat(right.slice().reverse()), center: c };
+}
+// linee parallele dentro un poligono (tratteggio)
+function hatchLines(poly, angle, spacing){
+  const bb = bbox(poly), cx = (bb[0]+bb[2])/2, cy = (bb[1]+bb[3])/2;
+  const R = Math.hypot(bb[2]-bb[0], bb[3]-bb[1]) / 2 + spacing;
+  const d = [Math.cos(angle), Math.sin(angle)], n = [-d[1], d[0]];
+  const o = [];
+  for (let s = -R; s <= R; s += spacing){
+    const m = add([cx, cy], mul(n, s));
+    o.push([add(m, mul(d, -R)), add(m, mul(d, R))]);
+  }
+  return o;
+}
+
+// ---------------------------------------------------------------- nomi latini
+function binomen(rng){
+  const pick = a => a[Math.floor(rng() * a.length)];
+  const genera = ['Rattus','Mus','Murinus','Pseudorattus','Nesokia','Bandicota','Apodemus','Micromys','Mastomys','Leopoldamys'];
+  const on = ['b','c','d','f','g','l','m','n','p','qu','r','s','t','v','st','tr','gr','pl','ch'];
+  const vw = ['a','e','i','o','u','ae','au'];
+  const end = ['us','is','ensis','oides','atus','icus','inus','ax','ulus'];
+  let sp = pick(vw) === 'a' ? '' : pick(on);
+  const k = 1 + Math.floor(rng() * 2);
+  for (let i = 0; i < k; i++) sp += pick(vw) + pick(on);
+  sp += pick(end);
+  return pick(genera) + ' ' + sp.replace(/^qu/, 'qu');
+}
+
+// ---------------------------------------------------------------- colori
+function hex2rgb(h){ const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgb2hex(c){ return '#' + c.map(x => clamp(Math.round(x), 0, 255).toString(16).padStart(2, '0')).join(''); }
+function mixC(a, b, t){ const A = hex2rgb(a), B = hex2rgb(b); return rgb2hex(A.map((x, i) => lerp(x, B[i], t))); }
+function shadeC(h, k){ return rgb2hex(hex2rgb(h).map(x => x * k)); }
+function lum(h){ const c = hex2rgb(h); return (0.299*c[0] + 0.587*c[1] + 0.114*c[2]) / 255; }
+
+// tinte plausibili per il pelo dei ratti: [nome, colore, peso, chiaro]
+const COAT_COLORS = [
+  ['bianco',        '#f3efe6', 0.9, 1],
+  ['crema',         '#ece0c8', 0.6, 1],
+  ['champagne',     '#e2cda9', 0.7],
+  ['beige',         '#d6bf98', 0.9],
+  ['fulvo',         '#c39062', 0.8],
+  ['cannella',      '#a9764c', 0.7],
+  ['agouti',        '#866849', 1.2],
+  ['marrone',       '#6f503a', 0.9],
+  ['cioccolato',    '#563b2c', 0.7],
+  ['visone',        '#8c7d70', 0.6],
+  ['grigio perla',  '#cbc7c1', 0.6],
+  ['argento',       '#b0aeaa', 0.5],
+  ['grigio blu',    '#7b848d', 0.6],
+  ['grigio ardesia','#5d6267', 0.6],
+  ['nero',          '#383232', 0.9],
+];
+const COAT_PATTERNS = [
+  ['tinta unita', 22], ['agouti', 16], ['incappucciato', 14], ['berkshire', 11], ['irish', 7],
+  ['con calotta', 6], ['pezzato', 9], ['a macchie', 7], ['con striscia dorsale', 8],
+];
+function makeCoat(crng){
+  const pickW = items => { let s = 0; for (const it of items) s += it[2] !== undefined ? it[2] : it[1];
+    let r = crng() * s; for (const it of items){ r -= (it[2] !== undefined ? it[2] : it[1]); if (r <= 0) return it; } return items[items.length - 1]; };
+  const tint = h => mixC(shadeC(h, 0.94 + 0.1 * crng()), crng() < 0.5 ? '#c49a68' : '#8494a4', 0.07 * crng());
+  const whites = ['#f4f0e8', '#f2ecdf', '#f6f3ec'];
+  const white = whites[Math.floor(crng() * whites.length)];
+  const pattern = pickW(COAT_PATTERNS)[0];
+  const needsColor = pattern !== 'tinta unita';
+  const cc = pickW(needsColor ? COAT_COLORS.filter(c => !c[3]) : COAT_COLORS);
+  const color = tint(cc[1]), cname = cc[0];
+  const C = { pattern, cname, white, color, ruby: false };
+  const cream = '#efe4cf';
+  switch (pattern){
+    case 'tinta unita':      C.base = color; C.leg = color; C.head = color; break;
+    case 'agouti':           C.base = color; C.second = mixC(color, cream, 0.55); C.leg = C.second; C.head = color; break;
+    case 'incappucciato':    C.base = white; C.second = color; C.leg = white; C.head = color; break;
+    case 'berkshire':        C.base = color; C.second = white; C.leg = white; C.head = color; break;
+    case 'irish':            C.base = color; C.second = white; C.leg = color; C.head = color; break;
+    case 'con calotta':      C.base = white; C.second = color; C.leg = white; C.head = color; break;
+    case 'pezzato':          C.base = white; C.second = color; C.leg = white; C.head = color; break;
+    case 'a macchie':        C.base = white; C.second = color; C.leg = white; C.head = white; break;
+    case 'con striscia dorsale':
+      C.base = mixC(color, cream, 0.35); C.second = shadeC(color, 0.62); C.leg = C.base; C.head = C.base; break;
+  }
+  const dark = h => lum(h) < 0.42;
+  // occhi rossi negli albini, a volte nei mantelli chiari
+  if ((pattern === 'tinta unita' && cname === 'bianco' && crng() < 0.65) ||
+      (['champagne', 'beige', 'crema', 'fulvo'].includes(cname) && crng() < 0.3)) C.ruby = true;
+  C.eye = C.ruby ? '#9b1f2b' : '#151010';
+  C.ear = dark(C.head) ? mixC(C.head, '#b39690', 0.45) : '#ecc6b8';
+  C.earIn = mixC(C.ear, '#e09a8a', 0.35);
+  C.nose = dark(C.head) ? '#8a6c66' : '#d99f90';
+  C.tail = dark(C.base) && C.base !== white ? '#8f7c75' : '#e2c3b6';
+  C.foot = dark(C.leg) ? '#a38e86' : '#eecbbd';
+  C.desc = (pattern === 'tinta unita' ? cname + ' a tinta unita' : cname + ' ' + pattern) + (C.ruby ? ', occhi rossi' : '');
+  C.rng = crng;
+  return C;
+}
+
+// ---------------------------------------------------------------- il ratto
+function ratdraw(seed){
+  const rng = makeRNG(seed);
+  const noise = makeNoise(rng);
+  const R = (a, b) => a + (b - a) * rng();
+
+  // parametri del "genoma"
+  const G = {
+    head:   R(0.85, 1.2),   // grandezza della testa
+    body:   R(0.85, 1.25),  // altezza del corpo
+    arch:   R(0.85, 1.25),  // gobba della schiena
+    belly:  R(0.9, 1.25),   // pancia
+    snout:  R(0.8, 1.25),   // lunghezza del muso
+    ear:    R(0.8, 1.35),
+    eye:    R(0.8, 1.3),
+    tilt:   R(-0.32, 0.12), // testa alzata (negativo) o abbassata
+    tailL:  R(0.8, 1.2),
+    tailA:  R(0.1, 0.4),    // ampiezza dell'onda della coda
+    tailF:  R(0.5, 1.6),    // quante onde
+    tailP:  R(0, 2*PI),
+    tailD:  0,              // curvatura (scelta sotto)
+    fur:    R(0.75, 1.3),   // densità del pelo
+    furLen: R(0.8, 1.35),
+    whisk:  R(0.8, 1.3),
+    reach:  R(-0.6, 1.0),   // zampa anteriore in avanti o indietro
+    step:   R(-0.5, 1.0),   // zampa posteriore
+    leg:    R(0.8, 1.3),    // altezza dal suolo
+  };
+  G.tailD = rng() < 0.3 ? R(-1.0, -0.2) : R(0.7, 2.8);
+  const name = binomen(rng);
+  rng();                // (prima sceglieva il verso: lo consumo per non cambiare i ratti)
+  const flip = false;   // muso sempre a sinistra
+  // il mantello usa una sua sequenza casuale: la forma del ratto non cambia
+  const coat = makeCoat(makeRNG(String(seed) + '|mantello'));
+  const fills = [];
+  const fill = (poly, color, z, opt) => fills.push(Object.assign({ poly, color, z }, opt || {}));
+
+  // profilo del corpo (t: 0 = punta del naso, 1 = groppa; v: -1 pancia, +1 schiena)
+  const sn = G.snout;
+  // Ogni metà del profilo è fatta di due archi di seno (testa e corpo)
+  // fusi con un massimo "morbido": la gola nasce da sola dove si incontrano.
+  // sin^p con p<1 dà estremi arrotondati (naso e groppa).
+  function arch(t, t0, t1, h, p, k){
+    if (t <= t0 || t >= t1) return 0;
+    const u = Math.pow((t - t0) / (t1 - t0), k);
+    return h * Math.pow(Math.sin(PI * u), p);
+  }
+  const smax = (a, b, n) => Math.pow(Math.pow(a, n) + Math.pow(b, n), 1 / n);
+  const headEnd = 0.36 + 0.06 * (sn - 1);
+  const bodyPeak = R(0.55, 0.72);
+  const kTop = Math.log(0.5) / Math.log(bodyPeak);
+  const kBot = Math.log(0.5) / Math.log(R(0.5, 0.62));
+  const TOP = t => smax(
+    arch(t, 0, headEnd + 0.04, 0.1 * G.head, 0.62, Math.log(0.5) / Math.log(0.62)),
+    arch(t, 0.16, 1, 0.2 * G.body * G.arch, 0.72, kTop),
+    7);
+  const BOT = t => smax(
+    arch(t, 0, headEnd, 0.068 * G.head, 0.6, Math.log(0.5) / Math.log(0.68)),
+    arch(t, 0.12, 1, 0.15 * G.body * G.belly, 0.7, kBot),
+    7);
+  const pivot = [0.3, 0];
+  const headW = t => 1 - smooth(0.13, 0.4, t);
+  function map(t, v){
+    let p = [t, v >= 0 ? -v * TOP(t) : -v * BOT(t)];
+    const a = G.tilt * headW(t);
+    if (a) p = add(pivot, rot(sub(p, pivot), a));
+    return p;
+  }
+  const tangent = (t, v) => norm(sub(map(Math.min(1, t + 0.002), v), map(Math.max(0, t - 0.002), v)));
+
+  // sagoma
+  const N = 260, ts = [];
+  for (let k = 0; k <= N; k++) ts.push((1 - Math.cos(PI * k / N)) / 2);
+  const topLine = ts.map(t => map(t, 1)), botLine = ts.map(t => map(t, -1));
+  const bodyPoly = topLine.concat(botLine.slice(1, -1).reverse());
+  const body = region(bodyPoly);
+  let lowest = -Infinity;
+  for (const t of ts) if (t > 0.3 && t < 0.97) lowest = Math.max(lowest, map(t, -1)[1]);
+  const ground = lowest + 0.055 * G.leg;
+
+  // ------------------------------------------------ sistema di livelli
+  // si disegna dal davanti verso il dietro: ogni forma già disegnata
+  // diventa una maschera che nasconde le linee che le stanno dietro.
+  const out = [];
+  const masks = [];
+  const STEP = 0.0035;
+  function draw(pl, opt){
+    opt = opt || {};
+    if (!pl || pl.length < 2) return;
+    const pts = resample(pl, STEP);
+    let run = [];
+    const flush = () => { if (run.length > 1) out.push(run); run = []; };
+    for (const p of pts){
+      let ok = true;
+      if (opt.inside && !inRegion(p, opt.inside)) ok = false;
+      if (ok && opt.outside && inRegion(p, opt.outside)) ok = false;
+      if (ok) for (const m of masks) if (inRegion(p, m)) { ok = false; break; }
+      if (ok) run.push(p); else flush();
+    }
+    flush();
+  }
+  const mask = poly => masks.push(region(poly));
+  const jitter = (pl, amt, f) => pl.map((p, i) => [p[0] + amt*(noise(p[0]*f, p[1]*f) - 0.5), p[1] + amt*(noise(p[0]*f + 31, p[1]*f + 17) - 0.5)]);
+
+  // ------------------------------------------------ 1. baffi
+  const nW = 6 + Math.floor(rng() * 6);
+  for (let i = 0; i < nW; i++){
+    const s = map(R(0.018, 0.05) * sn, R(-0.35, 0.35));
+    let a = PI + R(-0.75, 0.55) + G.tilt;
+    const k = R(0.15, 0.6) * (rng() < 0.8 ? -1 : 1);
+    const L = R(0.08, 0.17) * G.whisk;
+    const pl = [s];
+    let p = s;
+    for (let j = 1; j <= 24; j++){
+      a += k / 24;
+      p = add(p, [Math.cos(a) * L/24, Math.sin(a) * L/24]);
+      pl.push(p);
+    }
+    draw(pl);
+  }
+
+  // ------------------------------------------------ 2. occhio
+  const eyeC = map(0.105 * sn + 0.02, 0.36);
+  const er = 0.0155 * G.eye;
+  const hl = region(circle(add(eyeC, [-0.35*er, -0.35*er]), 0.34*er, 16));
+  for (let r = er; r > 0.0015; r -= (coat.ruby ? 0.0045 : 0.0021)) draw(circle(eyeC, r, 36), { outside: hl });
+  fill(circle(eyeC, er, 24), coat.eye, 10);
+  draw(circle(eyeC, er, 40));
+  draw(circle(eyeC, er * 1.45, 24, PI * 1.05, PI * 1.85));
+  draw(circle(eyeC, er * 1.35, 18, PI * 0.2, PI * 0.75));
+  mask(circle(eyeC, er * 1.7, 24));
+
+  // ------------------------------------------------ 3. naso e bocca
+  const tip = map(0.004, 0.05);
+  for (let r = 0.009; r > 0.001; r -= 0.0018) draw(circle(add(tip, [0.003, 0]), r, 14, PI*0.55, PI*1.45));
+  fill(circle(add(tip, [0.004, 0]), 0.0085, 14), coat.nose, 10);
+  draw(ts.filter(t => t > 0.012 && t < 0.075 * sn).map(t => map(t, -0.42 + 0.25 * smooth(0.012, 0.07*sn, t))));
+  draw(ts.filter(t => t > 0.03 * sn && t < 0.08 * sn).map(t => map(t, -0.75)));
+  for (let i = 0; i < 9; i++){
+    const p = map(R(0.02, 0.06) * sn, R(-0.25, 0.3));
+    draw(circle(p, 0.0012, 5));
+  }
+
+  // ------------------------------------------------ 4. orecchio vicino
+  function earShape(tb, vb, size, extraRot){
+    const base = map(tb, vb);
+    const ang = R(0.25, 0.65) + G.tilt * headW(tb) + (extraRot || 0);
+    const E = 0.082 * size;
+    const outer = [], inner = [];
+    for (let i = 0; i <= 60; i++){
+      const th = i / 60 * 2 * PI;                       // 0 = davanti, PI/2 = in alto
+      const up = (Math.sin(th) + 1) / 2;                // 0 alla base, 1 in cima
+      const wob = 1 + 0.05 * (noise(i * 0.35, tb * 50) - 0.5);
+      const xr = E * (0.32 + 0.38 * Math.sqrt(up)) * wob;
+      outer.push(add(base, rot([xr * Math.cos(th) + E * 0.06 * up, -E * 0.55 - E * 0.7 * Math.sin(th) * wob], ang)));
+      const xi = E * (0.18 + 0.26 * Math.sqrt(up));
+      inner.push(add(base, rot([xi * Math.cos(th) - E * 0.06, -E * 0.5 - E * 0.48 * Math.sin(th)], ang)));
+    }
+    return { outer, inner, ang, E, base };
+  }
+  const ear1 = earShape(0.245, 0.82, G.ear);
+  const E1 = () => 0.082 * G.ear * 0.1;
+  draw(jitter(ear1.outer, 0.002, 60));
+  draw(ear1.inner.slice(8, 50));
+  const innerR = region(ear1.inner);
+  const earTop1 = region(circle(add(ear1.base, rot([E1(), -0.082 * G.ear * 1.05], ear1.ang)), 0.082 * G.ear * 0.55, 20));
+  for (const l of hatchLines(ear1.inner, ear1.ang + 0.25, 0.0065)) draw(l.map(p => p), { inside: innerR, outside: earTop1 });
+  mask(ear1.outer);
+  fill(ear1.outer, coat.ear, 9); fill(ear1.inner, coat.earIn, 9.1);
+
+  // ------------------------------------------------ 5. corpo
+  // contorno: pulito sul muso, morbido sul resto
+  draw(jitter(topLine, 0.0025, 40));
+  draw(jitter(botLine, 0.0025, 40));
+  // ciuffi lungo il contorno
+  for (let t = 0.24; t < 0.985; t += R(0.004, 0.011)){
+    for (const side of [1, -1]){
+      if (side === -1 && (t < 0.3 || t > 0.95)) continue;
+      const p0 = map(t, side * 0.97);
+      const T = tangent(t, side), Nn = side > 0 ? [T[1], -T[0]] : [-T[1], T[0]];
+      const L = R(0.007, 0.02) * G.furLen;
+      const d = norm(add(mul(T, 0.9), mul(Nn, side > 0 ? 0.4 : 0.5)));
+      const mid = add(p0, add(mul(d, L * 0.5), mul(Nn, L * 0.08)));
+      draw([p0, mid, add(p0, mul(d, L))]);
+    }
+  }
+  // pelo: tratti brevi che seguono il corpo, più fitti in ombra
+  const nFur = Math.floor(9000 * G.fur);
+  for (let i = 0; i < nFur; i++){
+    const t = R(0.03, 0.99), v = R(-1, 1);
+    const shadow = smooth(-0.2, 1.0, -v);
+    const rumpDark = smooth(0.7, 1.0, t) * 0.25;
+    const light = smooth(0.25, 0.9, v) * (1 - Math.abs(t - 0.5) * 1.6) * 0.35;
+    let d = 0.1 + 0.58 * shadow + rumpDark - light + 0.4 * (noise(t * 7, v * 2) - 0.5);
+    if (t < 0.25) d *= 0.65;
+    if (rng() > d * d) continue;
+    const p0 = map(t, v);
+    const T = tangent(t, v);
+    const a = 0.06 + 0.32 * Math.max(0, -v) + 0.14 * (noise(t * 6 + 5, v * 2) - 0.5);
+    const dir = rot(T, a);
+    const L = (t < 0.25 ? 0.45 : 1) * R(0.012, 0.026) * G.furLen * (v < -0.6 ? 0.8 : 1);
+    const nrm = [-dir[1], dir[0]];
+    const p1 = add(p0, add(mul(dir, L * 0.5), mul(nrm, L * 0.07)));
+    draw([p0, p1, add(p0, mul(dir, L))], { inside: body });
+  }
+  // anca: arco rotondo, spezzato
+  const hipC = map(0.84, -0.15), hipR = 0.105 * G.body;
+  for (const [a0, a1] of [[0.62, 0.8], [0.86, 1.08], [1.14, 1.34]])
+    draw(jitter(circle(hipC, hipR, 10, PI * (a0 + R(-0.03, 0.03)), PI * a1), 0.002, 50), { inside: body });
+  // spalla
+  const shC = map(0.38, -0.3), shR = 0.06 * G.body;
+  draw(jitter(circle(shC, shR, 20, PI * 0.75, PI * 1.25), 0.002, 50), { inside: body });
+  mask(bodyPoly);
+  fill(bodyPoly, coat.base, 5);
+
+  // ------------------------------------------------ 6. zampe vicine
+  function frontLeg(dx, detail){
+    const S = map(0.35 + dx, -0.45);
+    const bottomHere = map(0.37 + dx, -1)[1];
+    const El = [S[0] + 0.022, Math.max(S[1] + 0.04, bottomHere - 0.005)];
+    const W = [S[0] - 0.012 - 0.035 * G.reach + dx * 0.2, ground - 0.014];
+    const legT = tube([S, El, W], 0.066, 0.03, 10);
+    // mano: piccola, appoggiata, con dita
+    const pw = [];
+    const pl = 0.048;
+    const handPts = [
+      [W[0] + 0.006, W[1] - 0.002], [W[0] + 0.004, ground - 0.002], [W[0] - pl * 0.5, ground],
+      [W[0] - pl, ground - 0.002], [W[0] - pl - 0.005, ground - 0.008],
+      [W[0] - pl * 0.65, ground - 0.017], [W[0] - 0.008, W[1] - 0.01]
+    ];
+    const hand = catmull(handPts, 5);
+    hand.push(hand[0]);
+    draw(jitter(hand, 0.0012, 90));
+    for (let i = 0; i < 4; i++){
+      const x = W[0] - pl * 0.55 - i * pl * 0.13;
+      draw([[x + 0.004, ground - 0.009 + i*0.001], [x - 0.004, ground - 0.001]]);
+      draw([[x - 0.004, ground - 0.001], [x - 0.008, ground + 0.0005]]);
+    }
+    mask(hand);
+    fill(hand, detail ? coat.foot : shadeC(coat.foot, 0.9), detail ? 8.1 : 2.1, { outside: true });
+    draw(jitter(legT.left, 0.0015, 70)); draw(jitter(legT.right, 0.0015, 70));
+    if (detail){
+      const lr = region(legT.poly);
+      for (let i = 0; i < 70; i++){
+        const k = Math.floor(R(0.15, 0.95) * legT.center.length);
+        const c = legT.center[k], q = legT.right[k];
+        const p0 = [lerp(c[0], q[0], R(0, 1)), lerp(c[1], q[1], R(0, 1))];
+        draw([p0, add(p0, [R(-0.004, 0.003), R(0.006, 0.012)])], { inside: lr });
+      }
+    }
+    mask(legT.poly);
+    fill(legT.poly, detail ? coat.leg : shadeC(coat.leg, 0.88), detail ? 8 : 2, { outside: true });
+  }
+  function hindLeg(dx, detail){
+    const K = map(0.81 + dx, -0.82);
+    const H = [K[0] + 0.03 - 0.03 * G.step + dx * 0.4, ground - 0.026];
+    const fl = 0.14 * R(0.9, 1.15);
+    const toe = [H[0] - fl, ground];
+    const legT = tube([K, [lerp(K[0], H[0], 0.5) + 0.01, lerp(K[1], H[1], 0.5)], H], 0.075, 0.032, 10);
+    const footPts = [
+      [H[0] + 0.014, H[1] + 0.004], [H[0] + 0.012, ground - 0.006], [H[0] + 0.004, ground], [H[0] - fl * 0.4, ground],
+      [toe[0] + 0.012, ground - 0.001], [toe[0], ground - 0.006], [toe[0] + 0.003, ground - 0.017],
+      [toe[0] + fl * 0.35, ground - 0.024], [H[0] - fl * 0.25, H[1] - 0.012], [H[0] + 0.006, H[1] - 0.014]
+    ];
+    const foot = catmull(footPts, 5);
+    foot.push(foot[0]);
+    draw(jitter(foot, 0.0012, 90));
+    for (let i = 0; i < 4; i++){
+      const x = toe[0] + 0.01 + i * 0.0085;
+      draw([[x + 0.007, ground - 0.017 + i * 0.0008], [x, ground - 0.002]]);
+      draw([[toe[0] + 0.004 + i * 0.006, ground - 0.002], [toe[0] - 0.003 + i * 0.006, ground + 0.0006]]);
+    }
+    if (detail){
+      const fr = region(foot);
+      for (let i = 0; i < 40; i++){
+        const x = R(toe[0] + 0.03, H[0]), y = R(ground - 0.012, ground);
+        draw([[x, y], [x + R(0.004, 0.01), y - R(0.001, 0.003)]], { inside: fr });
+      }
+    }
+    mask(foot);
+    fill(foot, detail ? coat.foot : shadeC(coat.foot, 0.9), detail ? 8.1 : 2.1, { outside: true });
+    draw(jitter(legT.left, 0.0015, 70)); draw(jitter(legT.right, 0.0015, 70));
+    if (detail){
+      const lr = region(legT.poly);
+      for (let i = 0; i < 60; i++){
+        const k = Math.floor(R(0.1, 0.95) * legT.center.length);
+        const c = legT.center[k], q = legT.left[k];
+        const p0 = [lerp(c[0], q[0], R(0, 1)), lerp(c[1], q[1], R(0, 1))];
+        draw([p0, add(p0, [R(0.002, 0.006), R(0.006, 0.012)])], { inside: lr });
+      }
+    }
+    mask(legT.poly);
+    fill(legT.poly, detail ? coat.leg : shadeC(coat.leg, 0.88), detail ? 8 : 2, { outside: true });
+  }
+  frontLeg(0, true);
+  hindLeg(0, true);
+
+  // ------------------------------------------------ 7. coda
+  {
+    const base = map(0.972, -0.25);
+    const TL = G.tailL * (G.tailD < 0 ? 0.85 : 1);
+    const n = 260;
+    let a0 = R(-0.35, 0.25);
+    const cl = [base];
+    let p = base;
+    for (let i = 1; i <= n; i++){
+      const s = i / n;
+      const a = a0 + G.tailD * Math.pow(s, 1.3) + G.tailA * (Math.sin(2*PI*G.tailF*s + G.tailP) - Math.sin(G.tailP));
+      p = add(p, [Math.cos(a) * TL / n, Math.sin(a) * TL / n]);
+      cl.push(p);
+    }
+    const width = s => 0.03 * Math.pow(1 - s, 0.85) + 0.0025;
+    for (let i = 0; i < cl.length; i++){
+      const g0 = ground - width(i / (cl.length - 1)) / 2 - 0.025;
+      if (cl[i][1] > g0) cl[i] = [cl[i][0], g0 + 0.025 * Math.tanh((cl[i][1] - g0) / 0.025)];
+    }
+    const L = [], Rr = [];
+    for (let i = 0; i < cl.length; i++){
+      const a = cl[Math.max(0, i-1)], b = cl[Math.min(cl.length-1, i+1)];
+      const tt = norm(sub(b, a)), nn = [-tt[1], tt[0]];
+      const w = width(i / (cl.length - 1)) / 2;
+      L.push(add(cl[i], mul(nn, w))); Rr.push(sub(cl[i], mul(nn, w)));
+    }
+    const tipCap = circle(cl[cl.length-1], 0.00125, 6);
+    draw(jitter(L, 0.001, 80)); draw(jitter(Rr, 0.001, 80)); draw(tipCap);
+    const tailPoly = L.concat(Rr.slice().reverse());
+    // anelli di squame
+    let acc = 0;
+    for (let i = 1; i < cl.length - 3; i++){
+      acc += len(sub(cl[i], cl[i-1]));
+      const s = i / (cl.length - 1);
+      const gap = 0.0075 + 0.004 * s;
+      if (acc < gap) continue;
+      acc = 0;
+      const tt = norm(sub(cl[i+1], cl[i-1]));
+      const mid = add(cl[i], mul(tt, -width(s) * 0.12));
+      draw([L[i], mid, Rr[i]]);
+      // ombra sul lato inferiore
+      if (rng() < 0.35){
+        const lower = (L[i][1] > Rr[i][1]) ? L[i] : Rr[i];
+        draw([lerp2(cl[i], lower, 0.45), lower]);
+      }
+    }
+    mask(tailPoly);
+    fill(tailPoly, coat.tail, 3);
+  }
+  function lerp2(a, b, t){ return [lerp(a[0], b[0], t), lerp(a[1], b[1], t)]; }
+
+  // ------------------------------------------------ 8. zampe lontane, orecchio lontano
+  frontLeg(0.045, false);
+  hindLeg(-0.055, false);
+  const ear2 = earShape(0.285, 0.9, G.ear * 0.92, 0.1);
+  draw(jitter(ear2.outer, 0.002, 60));
+  const in2 = region(ear2.inner);
+  for (const l of hatchLines(ear2.inner, ear2.ang + 0.25, 0.0055)) draw(l, { inside: in2 });
+  fill(ear2.outer, shadeC(coat.ear, 0.9), 1); fill(ear2.inner, shadeC(coat.earIn, 0.9), 1.1);
+
+  // ------------------------------------------------ 9. ombra a terra
+  let minX = Infinity, maxX = -Infinity;
+  for (const p of bodyPoly){ minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); }
+  for (let k = 0; k < 5; k++){
+    const y = ground + 0.004 + k * 0.0045;
+    let x = minX + 0.12 + k * 0.03;
+    const xe = maxX + 0.02 - k * 0.04;
+    while (x < xe){
+      const l = R(0.02, 0.09) * (1 - k * 0.12);
+      draw([[x, y + R(-0.0008, 0.0008)], [Math.min(xe, x + l), y + R(-0.0008, 0.0008)]]);
+      x += l + R(0.004, 0.02) * (1 + k * 0.6);
+    }
+  }
+
+  // ------------------------------------------------ macchie e strisce
+  {
+    const cr = coat.rng, cn = makeNoise(cr), CR = (a, b) => a + (b - a) * cr();
+    const tv = pts => resample(pts.concat([pts[0]]), 0.01).map(([t, v]) => map(clamp(t, 0, 1), v));
+    const wave = (x, f, k) => 2 * (cn(x * f, k) - 0.5);
+    const leftOf = tb => { const P = [[-0.02, 1.5]]; for (let v = 1.5; v >= -1.5; v -= 0.05) P.push([tb(v), v]); P.push([-0.02, -1.5]); return tv(P); };
+    const above = (vb, t0, t1) => { const P = []; for (let t = t0; t <= t1; t += 0.008) P.push([t, vb(t)]); P.push([t1, 1.6], [t0, 1.6]); return tv(P); };
+    const below = (vb, t0, t1) => { const P = []; for (let t = t0; t <= t1; t += 0.008) P.push([t, vb(t)]); P.push([t1, -1.6], [t0, -1.6]); return tv(P); };
+    const blob = (tc, vc, rt, rv) => { const P = [], k = CR(0, 99);
+      for (let i = 0; i < 40; i++){ const a = i / 40 * 2 * PI, r = 1 + 0.32 * wave(Math.cos(a) + k, 1.2, Math.sin(a) * 1.2);
+        P.push([tc + rt * r * Math.cos(a), vc + rv * r * Math.sin(a)]); }
+      return tv(P); };
+    const patch = (poly, color) => fill(poly, color, 6, { patch: true });
+    const stripe = (t0, t1, color, broken) => {
+      const v0 = CR(0.4, 0.68), wob = CR(0.1, 0.3);
+      let t = t0;
+      while (t < t1){
+        const seg = broken ? CR(0.06, 0.2) : t1 - t;
+        const te = Math.min(t1, t + seg);
+        patch(above(x => v0 + wob * wave(x, 6, 11), t, te), color);
+        t = te + (broken ? CR(0.02, 0.07) : 0);
+      }
+    };
+    const P = coat.pattern, c2 = coat.second;
+    if (P === 'agouti') patch(below(t => -0.32 + 0.12 * wave(t, 5, 3), -0.02, 1.02), c2);
+    if (P === 'berkshire') patch(below(t => -0.28 + 0.25 * wave(t, 4, 5) + 0.25 * smooth(0.3, 0, t), -0.02, 1.02), c2);
+    if (P === 'incappucciato'){
+      const hT = CR(0.33, 0.43);
+      patch(leftOf(v => hT + 0.05 * v + 0.085 * wave(v, 1.6, 7) - 0.07 * Math.max(0, -v)), c2);
+      if (cr() < 0.85) stripe(hT - 0.04, CR(0.85, 1.03), c2, cr() < 0.4);
+    }
+    if (P === 'con calotta'){
+      const cT = CR(0.24, 0.31);
+      patch(above(t => -0.15 + 0.3 * wave(t, 8, 9) + 0.9 * smooth(cT - 0.08, cT, t) * 2, -0.02, cT + 0.03), c2);
+    }
+    if (P === 'irish') patch(blob(CR(0.36, 0.44), -0.95, CR(0.04, 0.07), CR(0.35, 0.55)), c2);
+    if (P === 'pezzato'){
+      const hT = CR(0.22, 0.32);
+      patch(leftOf(v => hT + 0.06 * wave(v, 1.6, 13) - 0.08 * Math.max(0, -v)), c2);
+      const n = 3 + Math.floor(cr() * 5);
+      for (let i = 0; i < n; i++) patch(blob(CR(0.38, 0.97), CR(-0.3, 1.0), CR(0.04, 0.12), CR(0.25, 0.6)), c2);
+    }
+    if (P === 'a macchie'){
+      const n = 16 + Math.floor(cr() * 26);
+      for (let i = 0; i < n; i++) patch(blob(CR(0.04, 0.98), CR(-0.85, 1.0), CR(0.012, 0.035), CR(0.1, 0.26)), c2);
+    }
+    if (P === 'con striscia dorsale') stripe(CR(0.1, 0.3), CR(0.9, 1.03), c2, cr() < 0.25);
+  }
+
+  // ------------------------------------------------ inquadratura
+  const W = 600, H = 350, M = 28, CAP = 30;
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const pl of out) for (const p of pl){
+    bx0 = Math.min(bx0, p[0]); by0 = Math.min(by0, p[1]); bx1 = Math.max(bx1, p[0]); by1 = Math.max(by1, p[1]);
+  }
+  const sc = Math.min((W - 2*M - 20) / (bx1 - bx0), (H - 2*M - CAP - 10) / (by1 - by0));
+  const ox = (W - (bx1 - bx0) * sc) / 2, oy = M + 10 + (H - 2*M - CAP - 10 - (by1 - by0) * sc) / 2;
+  const lines = out.map(pl => rdp(pl, 0.0006).map(p => {
+    let x = (p[0] - bx0) * sc + ox;
+    if (flip) x = W - x;
+    return [x, (p[1] - by0) * sc + oy];
+  }));
+
+  const tr = p => { let x = (p[0] - bx0) * sc + ox; if (flip) x = W - x; return [x, (p[1] - by0) * sc + oy]; };
+  const fmt = p => (Math.round(p[0]*10)/10) + ' ' + (Math.round(p[1]*10)/10);
+  const P = poly => {
+    const h = Math.floor(poly.length / 2);
+    const pts = rdp(poly.slice(0, h + 1), 0.0007).concat(rdp(poly.slice(h), 0.0007).slice(1));
+    return 'M' + pts.map(tr).map(fmt).join(' ') + 'Z';
+  };
+  let hsh = 0; for (const ch of String(seed)) hsh = (Math.imul(hsh, 31) + ch.charCodeAt(0)) | 0;
+  const id = 'r' + (hsh >>> 0).toString(36);
+  const bodyD = P(bodyPoly);
+  let colorLayer = `<defs>
+<clipPath id="${id}b"><path d="${bodyD}"/></clipPath>
+<clipPath id="${id}o"><path clip-rule="evenodd" d="M-50 -50 H${W+50} V${H+50} H-50 Z ${bodyD}"/></clipPath>
+<filter id="${id}s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.1"/></filter>
+<linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0.3" stop-color="#2a1b12" stop-opacity="0"/><stop offset="1" stop-color="#2a1b12" stop-opacity="0.22"/></linearGradient>
+</defs>\n`;
+  const sorted = fills.slice().sort((a, b) => a.z - b.z);
+  const patches = sorted.filter(f => f.patch);
+  for (const f of sorted){
+    if (f.patch) continue;
+    colorLayer += `<path d="${P(f.poly)}" fill="${f.color}"${f.outside ? ` clip-path="url(#${id}o)"` : ''}/>\n`;
+    if (f.z === 5){
+      colorLayer += `<g clip-path="url(#${id}b)"><g filter="url(#${id}s)">` +
+        patches.map(q => `<path d="${P(q.poly)}" fill="${q.color}"/>`).join('') +
+        `</g><path d="${bodyD}" fill="url(#${id}g)"/></g>\n`;
+    }
+  }
+
+  let d = '';
+  for (const pl of lines){
+    d += 'M' + pl.map(p => (Math.round(p[0]*100)/100) + ' ' + (Math.round(p[1]*100)/100)).join(' ') + '\n';
+  }
+  const svg =
+`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<rect x="0" y="0" width="${W}" height="${H}" fill="floralwhite"/>
+<rect x="10" y="10" width="${W-20}" height="${H-20}" stroke="black" stroke-width="1" fill="none"/>
+${colorLayer}<path stroke="black" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round" d="${d}"/>
+<text x="${W/2}" y="${H - 24}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="14" fill="black">${name}.</text>
+</svg>`;
+  return { svg, name, coat: coat.desc, lines, genome: G };
+}
+
+root.ratdraw = ratdraw;
+if (typeof module !== 'undefined' && module.exports) module.exports = ratdraw;
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module){
+  const args = process.argv.slice(2);
+  let seed = String(Date.now());
+  const i = args.indexOf('--seed');
+  if (i >= 0 && args[i+1] !== undefined) seed = args[i+1];
+  if (args.includes('--help')){
+    console.log('uso: node ratdraw.js --seed <numero o parola> > ratto.svg');
+  } else {
+    process.stdout.write(ratdraw(seed).svg + '\n');
+  }
+}
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const seedEl = $('seed'), frame = $('frame'), goBtn = $('go'), nameEl = $('name');
+  let currentSvg = '', currentSeed = '', scale = 4;
+  const history = []; let hIndex = -1;
+
+  // salvataggi tramite la pagina pubblicata (se disponibile), altrimenti download normale
+  let downloads = null;
+  try {
+    if (window.claude && window.claude.use) {
+      window.claude.use('downloads').then(d => { downloads = d; }).catch(()=>{});
+    }
+  } catch(e) {}
+
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  // seed recenti (solo su questo dispositivo)
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem('ratti_recenti') || '[]'); } catch(e) { recent = []; }
+  function saveRecent(s){
+    recent = [s].concat(recent.filter(x => x !== s)).slice(0, 12);
+    try { localStorage.setItem('ratti_recenti', JSON.stringify(recent)); } catch(e) {}
+    renderRecent();
+  }
+  function renderRecent(){
+    const box = $('recent'); box.innerHTML = '';
+    recent.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.textContent = s;
+      b.onclick = () => { seedEl.value = s; generate(s, true); };
+      box.appendChild(b);
+    });
+  }
+
+  function generate(seed, push){
+    goBtn.disabled = true; frame.classList.add('busy');
+    setTimeout(function(){
+      try {
+        const r = ratdraw(seed);   // stesso seed = stesso ratto del terminale
+        currentSvg = r.svg;
+        currentSeed = seed;
+        frame.innerHTML = currentSvg.replace('width="600" height="350" ', '');
+        nameEl.textContent = seed + ' · ' + r.coat;
+        nameEl.title = r.name;
+        if (push) { history.splice(hIndex + 1); history.push(seed); hIndex = history.length - 1; }
+        saveRecent(seed);
+      } catch (e) {
+        frame.innerHTML = '<span id="status">Errore: ' + e.message + '</span>';
+      }
+      frame.classList.remove('busy'); goBtn.disabled = false;
+    }, 30);
+  }
+
+  function randomSeed(){
+    return String(Math.floor(Math.random() * 1e6));
+  }
+  function newRandom(){ const r = randomSeed(); seedEl.value = r; generate(r, true); }
+
+  goBtn.onclick = function(){
+    seedEl.blur();
+    const s = seedEl.value.trim();
+    if (!s) newRandom(); else generate(s, true);
+  };
+  seedEl.addEventListener('keydown', e => { if (e.key === 'Enter') goBtn.onclick(); });
+  $('rnd').onclick = newRandom;
+
+  // scorrimento sul pesce
+  let x0 = null, y0 = null;
+  frame.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, {passive:true});
+  frame.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx < 0) {
+      if (hIndex < history.length - 1) { hIndex++; seedEl.value = history[hIndex]; generate(history[hIndex], false); }
+      else newRandom();
+    } else if (hIndex > 0) {
+      hIndex--; seedEl.value = history[hIndex]; generate(history[hIndex], false);
+    } else toast('Questo è il primo ratto');
+  });
+
+  $('scale').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    scale = +b.dataset.v;
+    [...$('scale').children].forEach(c => c.classList.toggle('on', c === b));
+  });
+
+  function fileName(ext){
+    return 'ratto_' + (currentSeed || 'ratto').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'_') + '.' + ext;
+  }
+
+  async function offer(blob, name){
+    if (downloads) {
+      try { await downloads.save({ filename: name, data: blob }); toast('Salvato: ' + name); return; }
+      catch (err) {
+        if (err && err.code === 'declined') return;
+        if (err && err.code === 'rate_limited') { toast('Attendi un attimo e riprova'); return; }
+        // altrimenti prova il download classico
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('Scaricato: ' + name);
+  }
+
+  $('svgbtn').onclick = function(){
+    if (!currentSvg) return;
+    offer(new Blob([currentSvg], {type:'image/svg+xml'}), fileName('svg'));
+  };
+
+  $('png').onclick = function(){
+    if (!currentSvg) return;
+    const btn = this; btn.disabled = true;
+    const img = new Image();
+    img.onload = function(){
+      const c = document.createElement('canvas');
+      c.width = 600*scale; c.height = 350*scale;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fffaf0'; ctx.fillRect(0,0,c.width,c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => { btn.disabled = false; if (b) offer(b, fileName('png')); else toast('Impossibile creare il PNG'); }, 'image/png');
+    };
+    img.onerror = () => { btn.disabled = false; toast('Impossibile creare il PNG'); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(currentSvg);
+  };
+
+  renderRecent();
+  newRandom();
+})();
+</script>
+</body>
+</html>
